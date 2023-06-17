@@ -1,0 +1,381 @@
+<head>
+	<link rel="stylesheet" type="text/css" href="/client/css/styles.css">
+</head>
+<body>
+	<div id="signDiv">
+		Username: <input id="signDiv-username" type="text"></input>
+		Password: <input id="signDiv-password" type="password"></input>
+
+		<button id="signDiv-signIn">Sign In</button>
+		<button id="signDiv-signUp">Sign Up</button>
+
+		<div id="mapSelection">
+			Map select: <select name="Map" id="mapSelect">
+				<option value="field">Map 1</option>
+				<option value="map2">Map 2</option>
+	  		</select>
+		</div>
+	</div>
+
+	<div id="gameDiv">
+		<div id="game">
+			<canvas id="ctx" width="640" height="360"></canvas>
+			<canvas id="ctx-ui" width="640" height="360"></canvas>
+			<canvas id="ctx-uiInven" width="640" height="360"></canvas>
+			<canvas id="ctx-leaderBoard" width="200" height="150"></canvas> 				
+		</div>
+		<div id="belowGame">
+			<div id="map1-chat" class="chat">
+				<div id="chat1-text" class="chat-text">
+					<div>Map1</div>
+				</div>
+
+				<form id="chat1-form">
+					<input id="chat1-input" type="text"></input>
+				</form>
+			</div>
+		
+			<div id="map2-chat" class="chat">
+				<div id="chat2-text" class="chat-text">
+					<div>Map2</div>
+				</div>
+	
+				<form id="chat2-form">
+					<input id="chat2-input" type="text"></input>
+				</form>
+			</div>
+		</div>
+	</div>
+</body>
+<script src="http://localhost:2000/socket.io/socket.io.js"></script>
+<script src="/client/js/Entity.js"></script>
+
+<script>
+	//	
+	const WIDTH = 640, HEIGHT = 360;
+	let CANVAS_WIDTH = 640, CANVAS_HEIGHT = 360;
+	const socket = io();	
+
+	//sign
+	const signDivUsername = document.getElementById('signDiv-username');
+	const signDivSignIn = document.getElementById('signDiv-signIn');
+	const signDivSignUp = document.getElementById('signDiv-signUp');
+	const signDivPassword = document.getElementById('signDiv-password');
+
+	//chat
+	const chat = {};
+	chat['field'] = document.getElementById('map1-chat');
+	chat['map2'] = document.getElementById('map2-chat');
+
+	const chatText = {};
+	const chatInput = {};
+	const chatForm = {};
+
+	chatText['field'] = document.getElementById('chat1-text');
+	chatInput['field'] = document.getElementById('chat1-input');
+	chatForm['field'] = document.getElementById('chat1-form');
+
+	chatText['map2'] = document.getElementById('chat2-text');
+	chatInput['map2'] = document.getElementById('chat2-input');
+	chatForm['map2'] = document.getElementById('chat2-form');
+
+	signDivSignIn.onclick = _ => socket.emit('signIn',{username:signDivUsername.value,password:signDivPassword.value,map:mapSelect.value})
+
+	signDivSignUp.onclick = _ => socket.emit('signUp',{username:signDivUsername.value,password:signDivPassword.value});
+
+	socket.on('signInResponse',data => {
+		if(data.success){
+			signDiv.style.display = 'none';
+			chat[mapSelect.value].style.display = 'inline-block';
+			chatText[mapSelect.value].style.height = '100px';
+			gameDiv.style.display = 'inline-block';
+		} else
+			alert(data.message);
+	});
+	socket.on('signUpResponse',data => {
+		if(data.success)
+			alert(data.message);
+		else
+			alert(data.message);
+	});
+
+	//game
+	const Img = {};
+	Img.player = new Image();
+	Img.player.src = '/client/img/player.png';
+	Img.bullet = new Image();
+	Img.bullet.src = '/client/img/bullet.png';
+
+	Img.enemy = {};
+	Img.enemy['bat'] = new Image();
+	Img.enemy['bat'].src = '/client/img/bat.png';
+	Img.enemy['bee'] = new Image();
+	Img.enemy['bee'].src = '/client/img/bee.png';
+	
+	Img.upgrade = new Image();
+	Img.upgrade.src = '/client/img/upgrade1.png';
+	Img.item = new Image();
+	Img.item.src = '/client/img/upgrade2.png';
+	
+	Img.map = {};
+	Img.map['field'] = new Image();
+	Img.map['field'].src = '/client/img/map.png';
+	Img.map['map2'] = new Image();	
+	Img.map['map2'].src = '/client/img/map2.png';
+
+
+	const canvas = document.getElementById("ctx");
+	const ctx = canvas.getContext("2d");	
+
+	const canvasUI = document.getElementById("ctx-ui");
+	const ctxUi = canvasUI.getContext("2d");
+	
+	const canvasInven = document.getElementById("ctx-uiInven");
+	const ctxInven = canvasInven.getContext("2d");
+	
+	const canvasRanking = document.getElementById("ctx-leaderBoard");
+	const ctxRanking = canvasRanking.getContext("2d");
+		
+	let selfId = null;
+
+	//receive server data
+	socket.on('init', data => {	
+		if(data.selfId)
+			selfId = data.selfId;
+		//{ player : [{id:123,number:'1',x:0,y:0},{id:1,number:'2',x:0,y:0}], bullet: []}		
+		Player.init(data);
+		Bullet.init(data);
+		Enemy.init(data);
+		Upgrade.init(data);
+		_item.init(data);				
+	});
+	
+	socket.on('update', data => {
+		//{ player : [{id:123,x:0,y:0},{id:1,x:0,y:0}], bullet: []}
+		Player.update(data);
+		Bullet.update(data);
+		Enemy.update(data);
+		Upgrade.update(data);
+		_item.update(data);
+	});
+	
+	socket.on('remove', data => {
+		//{player:[12323],bullet:[12323,123123]}
+		Player.remove(data);
+		Bullet.remove(data);
+		Enemy.remove(data);
+		Upgrade.remove(data);
+		_item.remove(data);
+	});
+
+	let lastScore = null;
+	let currentBullets = null;
+	let atkSpd = null;
+	let reloadSpd = null;
+	let maxSpd = null;
+
+	resizeCanvas();
+	window.addEventListener('resize', _ => resizeCanvas());
+		
+	setInterval( _ => {
+		if(!selfId)
+			return;
+		ctx.clearRect(0,0,WIDTH,HEIGHT);		
+		drawMap();
+		drawUI();		
+		drawEntities();
+	},40);
+	
+	function drawMap() {
+		let player = Player.list[selfId];
+		let x = WIDTH/2 - player.x;
+		let y = HEIGHT/2 - player.y;
+		
+		ctx.drawImage(Img.map[player.map],0,0,Img.map[player.map].width,Img.map[player.map].height,x,y,Img.map[player.map].width*2,Img.map[player.map].height*2);
+	}
+		
+	function drawUI() {
+		if(lastScore === Player.list[selfId].score && currentBullets === Player.list[selfId].bullets
+		&& atkSpd === Player.list[selfId].atkSpd && reloadSpd === Player.list[selfId].reloadSpd
+		&& maxSpd === Player.list[selfId].maxSpd)
+			return;
+			
+		lastScore = Player.list[selfId].score;
+		currentBullets = Player.list[selfId].bullets;
+		atkSpd = Player.list[selfId].atkSpd;
+		reloadSpd = Player.list[selfId].reloadSpd;
+		maxSpd =  Player.list[selfId].maxSpd
+
+		ctxUi.clearRect(0,0,WIDTH,HEIGHT);
+		ctxUi.fillStyle = 'black';
+		ctxUi.font = '20px Arial';
+		ctxUi.fillText(`Score: ${Player.list[selfId].score.toFixed(0)}`,WIDTH/4,30);
+		ctxUi.fillText(`Highscore: ${Player.list[selfId].highscore.toFixed(0)}`,WIDTH/2 + 20,30)
+		
+		ctxUi.fillText(`Attack Speed: ${Player.list[selfId].atkSpd}`,0,110);
+		ctxUi.fillText(`Reload Speed: ${Player.list[selfId].reloadSpd}`,0,130);	
+		ctxUi.fillText(`Mobility: ${Player.list[selfId].maxSpd}`,0,150);
+		
+		ctxUi.fillText(`Bullets: ${Player.list[selfId].bullets}`,0,HEIGHT/1.2);
+	}	
+
+	function drawEntities() {
+		for(let i in Player.list)
+			Player.list[i].draw(Img.player, true, Player.list[i].username);
+
+		for(let i in Bullet.list)
+			Bullet.list[i].draw(Img.bullet);
+
+		for(let i in Enemy.list)
+			Enemy.list[i].draw(Img.enemy[Enemy.list[i].enemyType]);
+
+		for(let i in Upgrade.list)
+			Upgrade.list[i].draw(Img.upgrade);
+
+		for(let i in _item.list)	
+			_item.list[i].draw(Img.item);		
+	}
+
+	function resizeCanvas() {
+		ctx.clearRect(0,0,WIDTH,HEIGHT);
+		CANVAS_WIDTH = window.innerWidth - 4;
+		CANVAS_HEIGHT = window.innerHeight - 4;
+
+		const ratio = 16/9;
+		if(CANVAS_HEIGHT < CANVAS_WIDTH)
+			CANVAS_WIDTH = CANVAS_HEIGHT * ratio;
+		else
+			CANVAS_HEIGHT = CANVAS_WIDTH / ratio;
+
+		canvas.width = WIDTH;
+		canvas.height = HEIGHT;
+
+		canvasUI.width = WIDTH;
+		canvasUI.height = HEIGHT;
+		canvasInven.width = WIDTH;
+		canvasInven.height = HEIGHT;
+
+		canvasRanking.width = WIDTH/4;
+		canvasRanking.height = HEIGHT/1.5;
+
+		ctx.mozImageSmoothingEnabled = false;	//better graphics for pixel art
+		ctx.msImageSmoothingEnabled = false;
+		ctx.imageSmoothingEnabled = false;
+		
+		canvas.style.width = '' + CANVAS_WIDTH + 'px';
+		canvas.style.height = '' + CANVAS_HEIGHT + 'px';
+		canvasUI.style.width = '' + CANVAS_WIDTH + 'px';
+		canvasUI.style.height = '' + CANVAS_HEIGHT + 'px';
+		canvasInven.style.width = '' + CANVAS_WIDTH + 'px';
+		canvasInven.style.height = '' + CANVAS_HEIGHT + 'px';
+		canvasRanking.style.width = '' + CANVAS_WIDTH/5 + 'px';
+		canvasRanking.style.height = '' + CANVAS_HEIGHT/2 + 'px';
+
+		game.style.width = '' + CANVAS_WIDTH + 'px';
+		game.style.height = '' + CANVAS_HEIGHT + 'px';
+
+		if(!window.screenTop && !window.screenY) {
+			gameDiv.style.left = '8%';
+			gameDiv.style.right = '8%';
+		}
+		else {
+			gameDiv.style.left = '0%';
+			gameDiv.style.right = '0%';
+		}
+			
+		socket.emit('refreshInven', true);			
+		socket.emit('resizeBoard', true);
+		lastScore = null;
+		currentBullets = null
+		atkSpd = null;
+		reloadSpd = null;
+		maxSpd = null;	
+	}
+	
+	socket.on('updateInventory', data => {
+		ctxInven.clearRect(0,0,WIDTH,HEIGHT);
+		ctxInven.fillStyle = 'black';
+		ctxInven.font = '20px Arial';
+
+		let inven = "";
+		//let amount = "";
+		if(data.items[0] !== undefined) {
+			if(data.items[0].id === 'superAttack')
+				inven = "Super Attack";
+			//amount = "x " + data.items[0].amount;
+		}			
+		ctxInven.fillText(`[1] ${inven}`,0,70);
+	});
+	
+	socket.on('refreshLeaderBoard', data => {
+		ctxRanking.clearRect(0,0,WIDTH,HEIGHT);
+		ctxRanking.fillStyle = 'black';
+		ctxRanking.font = '15px Arial';
+		let fillY = 0;
+		ctxRanking.fillText("Leaderboard", canvasRanking.width/4,15);
+		for(let i = 1; i <= Object.keys(data).length; i++) {			
+			ctxRanking.fillText(`${data[i].rank}`,10,45 + fillY);
+			ctxRanking.fillText(`${data[i].username}`,canvasRanking.width/4,45 + fillY);
+			ctxRanking.fillText(`${data[i].score}`,canvasRanking.width/1.5,45 + fillY);
+			inven = "";
+			amount = "";
+			fillY+=20;
+		}		
+	})
+
+	socket.on('addToChat', (data,map) => chatText[map].innerHTML += '<div>' + data + '</div>');
+	socket.on('evalAnswer', data =>	console.log(data));
+	
+	document.onkeydown = event => {		
+		if(event.keyCode === 68)	//d
+			socket.emit('keyPress',{inputId:'right',state:true});
+		else if(event.keyCode === 83)	//s
+			socket.emit('keyPress',{inputId:'down',state:true});
+		else if(event.keyCode === 65) //a
+			socket.emit('keyPress',{inputId:'left',state:true});
+		else if(event.keyCode === 87) // w
+			socket.emit('keyPress',{inputId:'up',state:true}); 
+		
+		if(event.keyCode === 49) {	//1
+			if(Player.list[selfId].inventory.items[0] !== undefined)
+				socket.emit('useItem',Player.list[selfId].inventory.items[0]);
+		}
+
+		if(event.keyCode === 13) {			
+			chatForm[Player.list[selfId].map].onsubmit = e => {
+				e.preventDefault();
+				if(chatInput[Player.list[selfId].map].value[0] === '/')
+					socket.emit('evalServer',chatInput[Player.list[selfId].map].value.slice(1));
+				else if(chatInput[Player.list[selfId].map].value[0] === '@') {
+					//@username,message
+					socket.emit('sendPmToServer',{
+						map: Player.list[selfId].map,
+						username:chatInput[Player.list[selfId].map].value.slice(1,chatInput[Player.list[selfId].map].value.indexOf(',')),
+						message:chatInput[Player.list[selfId].map].value.slice(chatInput[Player.list[selfId].map].value.indexOf(',') + 1)
+					});
+				} else 
+					socket.emit('sendMsgToServer',chatInput[Player.list[selfId].map].value);
+				chatInput[Player.list[selfId].map].value = '';					
+			}			
+		}		
+	}
+	document.onkeyup = event => {
+		if(event.keyCode === 68)	//d
+			socket.emit('keyPress',{inputId:'right',state:false});
+		else if(event.keyCode === 83)	//s
+			socket.emit('keyPress',{inputId:'down',state:false});
+		else if(event.keyCode === 65) //a
+			socket.emit('keyPress',{inputId:'left',state:false});
+		else if(event.keyCode === 87) // w
+			socket.emit('keyPress',{inputId:'up',state:false});
+	}
+ 
+	document.onmousedown = event => socket.emit('keyPress',{inputId:'attack',state:true});
+	document.onmouseup = event => socket.emit('keyPress',{inputId:'attack',state:false});
+	document.onmousemove = event => {
+		let x = -CANVAS_WIDTH/2 + event.clientX - canvas.getBoundingClientRect().left;
+		let y = -CANVAS_HEIGHT/2 + event.clientY - canvas.getBoundingClientRect().top;
+		let angle = Math.atan2(y,x) / Math.PI * 180;
+		socket.emit('keyPress',{inputId:'mouseAngle',state:angle});
+	}
+</script>

@@ -1,0 +1,79 @@
+body {
+    margin: 0px;
+}
+
+div {
+    position: relative;
+}
+
+canvas {
+    position: absolute;
+    width: 640px;
+    height: 360px;
+    border: 1px solid rgb(0,0,0);;   
+}
+
+
+.chat {
+    display: none;
+}
+
+.chat-text{
+    width: 640px;
+    height: 0px;
+    overflow-y: scroll;
+    border: 1px solid #000000; 
+}
+
+.chat input{
+    width: 640px;
+}
+
+
+#signDiv {
+    margin:auto;
+    height: 200px;
+    width: 200px;
+    position:fixed;
+    top:0;
+    bottom:0;
+    left:0;
+    right:0;
+}
+
+#mapSelection {
+    margin-top: 8%;
+}
+
+#gameDiv {
+    display: none;
+    position: absolute;
+    left: 8%;
+    right: 8%;
+}
+
+#game {
+    width: 640px;
+    height: 360px;
+}
+
+#ctx-leaderboard {
+    width: 200px;
+    height: 150px;
+    position: absolute;
+    right: 0;
+    border: 1px solid rgb(0,0,0);
+    background-color: rgba(0, 0, 0, 0.06);  
+}
+
+#signDiv input, button {
+    margin-top: 1.8%;
+}
+
+#signDiv input {
+    display: block;
+}
+
+#signDiv button {
+    display: inline-block;
+}

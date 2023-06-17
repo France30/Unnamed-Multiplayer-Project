@@ -1,0 +1,19 @@
+{
+  "dependencies": {
+    "@hapi/hawk": "^8.0.0",
+    "express": "^4.17.1",
+    "mongojs": "^3.1.0",
+    "scss": "^0.2.4",
+    "socket.io": "^4.1.2"
+  },
+  "name": "online-multiplayer",
+  "version": "1.0.0",
+  "main": "app.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
